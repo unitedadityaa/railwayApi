@@ -12,6 +12,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "retell-sdk": "^4.19.0"
   }
 }
