@@ -2,7 +2,9 @@
   "name": "retell",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
+    "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -11,9 +13,5 @@
   "description": "",
   "dependencies": {
     "retell-sdk": "^4.19.0"
-  },
-  "type": "module",
-  "scripts": {
-  "start": "node server.js"
-}
+  }
 }
