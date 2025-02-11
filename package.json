@@ -1,0 +1,16 @@
+{
+  "name": "retell",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "retell-sdk": "^4.19.0"
+  },
+  "type": "module"
+}
