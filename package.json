@@ -12,5 +12,8 @@
   "dependencies": {
     "retell-sdk": "^4.19.0"
   },
-  "type": "module"
+  "type": "module",
+  "scripts": {
+  "start": "node server.js"
+}
 }
