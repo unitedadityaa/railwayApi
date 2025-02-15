@@ -44,6 +44,9 @@ const client = new Retell({
       res.status(500).json({ success: false, message: "Failed to create Knowledge Base", error: error.message });
     }
   });
+
+
+  
   
   // Start the server
   app.listen(PORT, () => {
