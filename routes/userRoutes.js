@@ -8,8 +8,10 @@ const RETELL_API_URL = "https://api.retellai.com/create-retell-llm";
 const RETELL_API_KEY = "key_29af1e14c19c49fd8a8bbb2f0f67"; // Ideally, store in environment variables
 const RETELL_CREATE_LLM_URL = "https://api.retellai.com/create-retell-llm";
 const RETELL_CREATE_AGENT_URL = "https://api.retellai.com/create-agent";
+const RETELL_UPDATE_LLM_URL = "https://api.retellai.com/update-retell-llm"; // ✅ Define this variable
 
-// Create a new usercl
+
+// Create a new user
 router.post("/create", async (req, res) => {
     try {
         console.log("Request Body:", req.body); // Debugging log
@@ -159,6 +161,89 @@ router.patch("/update-prompt", async (req, res) => {
         res.status(200).json({
             message: "LLM prompt updated successfully!",
             updatedData: retellResponse.data
+        });
+
+    } catch (error) {
+        console.error("Error:", error);
+        res.status(500).json({
+            message: "Server Error",
+            error: error.response?.data || error.message
+        });
+    }
+});
+
+
+const generateCustomPrompt = ({ businessName, objective, commonInquiries, agentName, rules, location, contactMethod, currentTime }) => {
+    return `# Role
+    
+You are a world-class Customer Support Executive with expertise in **friendly and professional** communication. Your name is **${agentName}**.
+
+# Objective
+
+Your primary goal is to ensure a seamless and professional experience for customers by **${objective}**. You will think step by step through the following process to ensure a good outcome.
+
+1. Actively listen to understand the customer’s needs related to services from **${businessName}**.
+2. Clearly explain available options based on the **knowledge base provided**.
+3. Persuade them to take the next step, which is typically **${contactMethod}**.
+
+# Context
+
+The task is crucial for our business, as each client brings us revenue. It's vital that we answer all their questions in a friendly and professional manner. Our top priority is ensuring that customers receive the correct information.
+
+# Instructions
+
+- The **current date and time** is: **${currentTime}** (provided by the customer).
+- You are speaking with the customer on the phone.
+- You **must not make up new facts** or edit any information beyond what has been provided.
+- If a customer asks something that is not in your knowledge base, politely let them know you will forward their inquiry.
+
+## Key Customer Questions
+- The most common inquiries customers ask about are: **${commonInquiries.join(", ")}**.
+
+## Steps
+
+1. **Greet & Offer Assistance**  
+2. **Explain Services & Build Interest**  
+3. **Encourage Next Steps**  
+4. **Follow Important Rules**  
+5. **Close the Call**  
+   `;
+};
+
+router.post("/generate-prompt", async (req, res) => {
+    try {
+        const { userId, businessName, objective, commonInquiries, agentName, rules, location, contactMethod, currentTime, llmId } = req.body;
+
+        if (!userId || !llmId || !businessName || !objective || !commonInquiries || !agentName || !rules || !location || !contactMethod || !currentTime) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        // Generate prompt
+        const customPrompt = generateCustomPrompt({
+            businessName, objective, commonInquiries, agentName, rules, location, contactMethod, currentTime
+        });
+
+        // Call Retell API to update LLM
+        const updateURL = `${RETELL_UPDATE_LLM_URL}/${llmId}`;
+        const retellResponse = await axios.patch(
+            updateURL,
+            {
+                model: "gpt-4o-mini",
+                general_prompt: customPrompt,
+                begin_message: "Hello, how can I assist you today?"
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${RETELL_API_KEY}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        res.status(200).json({
+            message: "LLM prompt updated successfully!",
+            updatedPrompt: customPrompt,
+            retellResponse: retellResponse.data
         });
 
     } catch (error) {
