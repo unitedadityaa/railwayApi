@@ -55,7 +55,7 @@ router.post("/add-llm", async (req, res) => {
         // Step 1: Create an LLM in Retell
         const retellLLMResponse = await axios.post(
             RETELL_CREATE_LLM_URL,
-            { begin_message: "Hello, this is Sia, how can I help you?" },
+            { begin_message: `Hello, this is ${agentName}, how can I help you?` },
             {
                 headers: {
                     Authorization: `Bearer ${RETELL_API_KEY}`,
