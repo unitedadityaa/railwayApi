@@ -10,7 +10,11 @@ const RETELL_CREATE_LLM_URL = "https://api.retellai.com/create-retell-llm";
 const RETELL_CREATE_AGENT_URL = "https://api.retellai.com/create-agent";
 const RETELL_UPDATE_LLM_URL = "https://api.retellai.com/update-retell-llm"; // ✅ Define this variable
 
+router.get("/", (req, res) => {
+    res.json({ message: "Users API is working!" });
+  });
 
+  
 // Create a new user
 router.post("/create", async (req, res) => {
     try {
@@ -39,6 +43,8 @@ router.post("/create", async (req, res) => {
 
 
 router.post("/add-llm", async (req, res) => {
+    console.log("Received request to /add-llm");  // Debug log
+    console.log("Request body:", req.body);
     try {
         const { userId, agentName, voiceId } = req.body;
 
