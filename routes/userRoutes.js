@@ -6,9 +6,9 @@ const router = express.Router();
 
 const RETELL_API_URL = "https://api.retellai.com/create-retell-llm";
 const RETELL_API_KEY = "key_29af1e14c19c49fd8a8bbb2f0f67"; // Ideally, store in environment variables
-const RETELL_CREATE_LLM_URL = "https://api.retellai.com/create-retell-llm";
-const RETELL_CREATE_AGENT_URL = "https://api.retellai.com/create-agent";
-const RETELL_UPDATE_LLM_URL = "https://api.retellai.com/update-retell-llm"; // ✅ Define this variable
+const RETELL_UPDATE_LLM_URL = "https://api.retellai.com/update-retell-llm";
+ const CREATE_LLM_URL = "https://api.retellai.com/create-retell-llm";
+const CREATE_AGENT_URL = "https://api.retellai.com/create-agent"; // ✅ Define this variable
 
 router.get("/", (req, res) => {
     res.json({ message: "Users API is working!" });
@@ -183,54 +183,96 @@ router.post("/generate-prompt", async (req, res) => {
     }
 });
 
+// ✅ Create LLM & Agent Together
 router.post("/create-llm", async (req, res) => {
     try {
         const { userId, generalPrompt, beginMessage } = req.body;
 
-        // 🔹 Validate inputs
+        // Validate input
         if (!userId || !generalPrompt || !beginMessage) {
-            return res.status(400).json({ message: "Missing required fields" });
+            return res.status(400).json({ message: "userId, generalPrompt, and beginMessage are required." });
         }
 
-        // 🔹 Step 1: Call Retell API to create a new LLM
+        // ✅ Step 1: Create LLM
         const llmResponse = await axios.post(
-            "https://api.retellai.com/create-retell-llm",
+            CREATE_LLM_URL,
             {
                 model: "gpt-4o-mini",
                 general_prompt: generalPrompt,
-                begin_message: beginMessage
+                begin_message: beginMessage,
             },
             {
-                headers: { 
+                headers: {
                     Authorization: `Bearer ${RETELL_API_KEY}`,
-                    "Content-Type": "application/json"
-                }
+                    "Content-Type": "application/json",
+                },
             }
         );
 
         const llmId = llmResponse.data.llm_id;
         if (!llmId) {
-            return res.status(500).json({ message: "Failed to create LLM" });
+            return res.status(500).json({ message: "Failed to retrieve LLM ID." });
         }
 
-        // 🔹 Step 2: Save LLM to MongoDB user object
-        const user = await User.findById(userId);
-        if (user) {
-            user.llms.push({ llmId, generalPrompt, beginMessage });
-            await user.save();
+        console.log(`✅ LLM Created: ${llmId}`);
+
+        // ✅ Step 2: Create Agent using the LLM ID
+        const agentResponse = await axios.post(
+            CREATE_AGENT_URL,
+            {
+                response_engine: {
+                    type: "retell-llm",
+                    llm_id: llmId,
+                },
+                voice_id: "11labs-Chloe",
+                agent_name: "YourAgentName", // Modify if needed
+                voice_model: "eleven_flash_v2_5",
+                ambient_sound: "coffee-shop",
+                ambient_sound_volume: 1.5,
+                language: "en-US",
+                enable_transcription_formatting: true,
+                normalize_for_speech: true,
+                end_call_after_silence_ms: 10000,
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${RETELL_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+
+        const agentId = agentResponse.data.agent_id;
+        if (!agentId) {
+            return res.status(500).json({ message: "Failed to retrieve Agent ID." });
         }
+
+        console.log(`✅ Agent Created: ${agentId}`);
+
+        // ✅ Step 3: Store LLM & Agent in User Object
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        user.llms.push({ llmId, agentId });
+        await user.save();
 
         res.status(200).json({
-            message: "LLM created successfully!",
+            message: "LLM & Agent created successfully!",
             llmId,
-            generalPrompt,
-            beginMessage
+            agentId,
         });
+
     } catch (error) {
-        console.error("❌ Error creating LLM:", error);
-        res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
+        console.error("❌ Error:", error.response?.data || error.message);
+        res.status(500).json({
+            message: "Server Error",
+            error: error.response?.data || error.message,
+        });
     }
 });
+
 
 
 
