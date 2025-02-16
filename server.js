@@ -50,7 +50,7 @@ const client = new Retell({
   
   // Start the server
   app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Serverss is running on port ${PORT}`);
   });
 
   
