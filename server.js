@@ -2,7 +2,7 @@ import Retell from "retell-sdk";
 import express from "express";
 import cors from "cors";
 import connectDB from "./db.js";
-import userRoutes from "./routes/userroutes.js";
+import userRoutes from "./routes/userRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
