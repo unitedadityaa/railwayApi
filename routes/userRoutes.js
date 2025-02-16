@@ -337,31 +337,29 @@ router.get("/check-agent/:userId", async (req, res) => {
     }
 });
 
-router.get("/get-llm/:llmId", async (req, res) => {
+router.get("/check-agent/:userId", async (req, res) => {
     try {
-        const { llmId } = req.params;
+        const { userId } = req.params;
+        const user = await User.findById(userId);
 
-        // ✅ Find user that has this LLM
-        const user = await User.findOne({ "llms.llmId": llmId });
-
-        if (!user) {
-            return res.status(404).json({ message: "LLM not found" });
+        if (!user || !user.llms.length) {
+            return res.status(404).json({ message: "No agents found for this user." });
         }
 
-        // ✅ Extract the correct LLM from the user's LLMs array
-        const llm = user.llms.find(llm => llm.llmId === llmId);
+        const latestLlm = user.llms[user.llms.length - 1];
 
-        if (!llm) {
-            return res.status(404).json({ message: "LLM ID not found in user data" });
-        }
+        // ✅ Prevent 304 caching
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.setHeader("Expires", "0");
+        res.setHeader("Pragma", "no-cache");
 
         res.status(200).json({
-            llmId: llm.llmId,
-            agentId: llm.agentId,
-            agentName: llm.agentName || "Unknown",
+            llmId: latestLlm.llmId,
+            agentId: latestLlm.agentId,
+            agentName: latestLlm.agentName || "Unknown",
         });
     } catch (error) {
-        console.error("❌ Error fetching LLM:", error);
+        console.error("❌ Error fetching agent:", error);
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 });
