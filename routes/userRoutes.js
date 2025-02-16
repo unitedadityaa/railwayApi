@@ -42,97 +42,6 @@ router.post("/create", async (req, res) => {
 });
 
 
-router.post("/add-llm", async (req, res) => {
-    try {
-        const { userId, agentName, voiceId } = req.body;
-
-        console.log("🚀 Received request to add LLM", { userId, agentName, voiceId });
-
-        if (!userId || !agentName || !voiceId) {
-            console.error("❌ Missing required fields", { userId, agentName, voiceId });
-            return res.status(400).json({ message: "userId, agentName, and voiceId are required" });
-        }
-
-        // ✅ Find the user in MongoDB
-        const user = await User.findById(userId);
-        if (!user) {
-            console.error("❌ User not found:", userId);
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        console.log("✅ User found:", user);
-
-        // ✅ Call Retell API to create an LLM
-        const retellLLMResponse = await axios.post(
-            "https://api.retellai.com/create-retell-llm",
-            { begin_message: `Hello, this is ${agentName}, how can I help you?` },
-            {
-                headers: {
-                    Authorization: `Bearer ${RETELL_API_KEY}`,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
-
-        console.log("✅ Retell LLM Response:", retellLLMResponse.data);
-
-        const llmId = retellLLMResponse.data.llm_id;
-        if (!llmId) {
-            console.error("❌ Failed to retrieve llm_id");
-            return res.status(500).json({ message: "Failed to retrieve llm_id from Retell API" });
-        }
-
-        // ✅ Call Retell API to create an agent
-        const retellAgentResponse = await axios.post(
-            "https://api.retellai.com/create-agent",
-            {
-                response_engine: {
-                    type: "retell-llm",
-                    llm_id: llmId
-                },
-                voice_model: "eleven_flash_v2_5",
-                agent_name: agentName,
-                voice_id: voiceId,
-                language: "en-US",
-                normalize_for_speech: true,
-                end_call_after_silence_ms: 10000
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${RETELL_API_KEY}`,
-                    "Content-Type": "application/json"
-                }
-            }
-        );
-
-        console.log("✅ Retell Agent Response:", retellAgentResponse.data);
-
-        const agentId = retellAgentResponse.data.agent_id;
-        if (!agentId) {
-            console.error("❌ Failed to retrieve agent_id");
-            return res.status(500).json({ message: "Failed to retrieve agent_id from Retell API" });
-        }
-
-        // ✅ Store agent details in MongoDB
-        user.llms.push({ llmId, agentId, agentName });
-        await user.save();
-
-        console.log("✅ Successfully stored agent in database");
-
-        res.status(201).json({
-            message: "New agent created successfully!",
-            agentId
-        });
-    } catch (error) {
-        console.error("❌ Server Error:", error.response?.data || error.message);
-        res.status(500).json({
-            message: "Server Error",
-            error: error.response?.data || error.message
-        });
-    }
-});
-
-
 router.patch("/update-prompt", async (req, res) => {
     try {
         const { userId, llmId, model, generalPrompt, beginMessage } = req.body;
@@ -274,94 +183,55 @@ router.post("/generate-prompt", async (req, res) => {
     }
 });
 
-// ✅ PATCH route to update an existing agent (instead of creating new ones)
-router.patch("/update-llm/:llmId", async (req, res) => {
+router.post("/create-llm", async (req, res) => {
     try {
-        const { llmId } = req.params;
-        const { agentName } = req.body;
+        const { userId, generalPrompt, beginMessage } = req.body;
 
-        if (!llmId || !agentName) {
-            return res.status(400).json({ message: "llmId and agentName are required" });
+        // 🔹 Validate inputs
+        if (!userId || !generalPrompt || !beginMessage) {
+            return res.status(400).json({ message: "Missing required fields" });
         }
 
-        console.log("🔄 Updating LLM:", llmId);
-
-        // ✅ Call Retell API to update the LLM name
-        const updateURL = `https://api.retellai.com/update-retell-llm/${llmId}`;
-        const retellResponse = await axios.patch(
-            updateURL,
-            { begin_message: `Hello, this is ${agentName}, how can I help you?` },
+        // 🔹 Step 1: Call Retell API to create a new LLM
+        const llmResponse = await axios.post(
+            "https://api.retellai.com/create-retell-llm",
             {
-                headers: {
-                    Authorization: `Bearer ${process.env.RETELL_API_KEY}`, // Use env variable
+                model: "gpt-4o-mini",
+                general_prompt: generalPrompt,
+                begin_message: beginMessage
+            },
+            {
+                headers: { 
+                    Authorization: `Bearer ${RETELL_API_KEY}`,
                     "Content-Type": "application/json"
                 }
             }
         );
 
-        console.log("✅ Retell API Response:", retellResponse.data);
-
-        res.status(200).json({
-            message: "Agent updated successfully!",
-            updatedData: retellResponse.data
-        });
-
-    } catch (error) {
-        console.error("❌ Error:", error);
-        res.status(500).json({
-            message: "Server Error",
-            error: error.response?.data || error.message
-        });
-    }
-});
-
-router.get("/check-agent/:userId", async (req, res) => {
-    try {
-        const { userId } = req.params;
-        const user = await User.findById(userId);
-
-        if (!user || !user.llms.length) {
-            return res.status(404).json({ message: "No agents found for this user." });
+        const llmId = llmResponse.data.llm_id;
+        if (!llmId) {
+            return res.status(500).json({ message: "Failed to create LLM" });
         }
 
-        const latestLlm = user.llms[user.llms.length - 1];
-
-        res.status(200).json({
-            llmId: latestLlm.llmId,
-            agentId: latestLlm.agentId,
-            agentName: latestLlm.agentName || "Unknown",
-        });
-    } catch (error) {
-        console.error("❌ Error fetching agent:", error);
-        res.status(500).json({ message: "Server Error", error: error.message });
-    }
-});
-
-router.get("/check-agent/:userId", async (req, res) => {
-    try {
-        const { userId } = req.params;
+        // 🔹 Step 2: Save LLM to MongoDB user object
         const user = await User.findById(userId);
-
-        if (!user || !user.llms.length) {
-            return res.status(404).json({ message: "No agents found for this user." });
+        if (user) {
+            user.llms.push({ llmId, generalPrompt, beginMessage });
+            await user.save();
         }
 
-        const latestLlm = user.llms[user.llms.length - 1];
-
-        // ✅ Prevent 304 caching
-        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-        res.setHeader("Expires", "0");
-        res.setHeader("Pragma", "no-cache");
-
         res.status(200).json({
-            llmId: latestLlm.llmId,
-            agentId: latestLlm.agentId,
-            agentName: latestLlm.agentName || "Unknown",
+            message: "LLM created successfully!",
+            llmId,
+            generalPrompt,
+            beginMessage
         });
     } catch (error) {
-        console.error("❌ Error fetching agent:", error);
-        res.status(500).json({ message: "Server Error", error: error.message });
+        console.error("❌ Error creating LLM:", error);
+        res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
     }
 });
+
+
 
 export default router;
