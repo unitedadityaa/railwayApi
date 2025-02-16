@@ -337,4 +337,33 @@ router.get("/check-agent/:userId", async (req, res) => {
     }
 });
 
+router.get("/get-llm/:llmId", async (req, res) => {
+    try {
+        const { llmId } = req.params;
+
+        // ✅ Find user that has this LLM
+        const user = await User.findOne({ "llms.llmId": llmId });
+
+        if (!user) {
+            return res.status(404).json({ message: "LLM not found" });
+        }
+
+        // ✅ Extract the correct LLM from the user's LLMs array
+        const llm = user.llms.find(llm => llm.llmId === llmId);
+
+        if (!llm) {
+            return res.status(404).json({ message: "LLM ID not found in user data" });
+        }
+
+        res.status(200).json({
+            llmId: llm.llmId,
+            agentId: llm.agentId,
+            agentName: llm.agentName || "Unknown",
+        });
+    } catch (error) {
+        console.error("❌ Error fetching LLM:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+});
+
 export default router;
