@@ -173,7 +173,7 @@ router.patch("/update-prompt", async (req, res) => {
 });
 
 
-const generateCustomPrompt = ({ businessName, commonInquiries, agentName, contactMethod, currentTime }) => {
+const generateCustomPrompt = ({ businessName, agentName, contactMethod, currentTime }) => {
     return `# Role
     
 You are a world-class Customer Support Executive with expertise in **friendly and professional** communication. Your name is **${agentName}**.
@@ -192,13 +192,10 @@ The task is crucial for our business, as each client brings us revenue. It's vit
 
 # Instructions
 
-- The **current date and time** is: **{{${currentTime}}}** .
+- The **current date and time** is: **${currentTime}**.
 - You are speaking with the customer on the phone.
 - You **must not make up new facts** or edit any information beyond what has been provided.
 - If a customer asks something that is not in your knowledge base, politely let them know you will forward their inquiry.
-
-## Key Customer Questions
-- The most common inquiries customers ask about are: **${commonInquiries.join(", ")}**.
 
 ## Steps
 
@@ -210,17 +207,26 @@ The task is crucial for our business, as each client brings us revenue. It's vit
    `;
 };
 
+// Function to check for missing fields
+const checkMissingFields = (requiredFields, data) => {
+    return requiredFields.filter(field => !data[field]);
+};
+
 router.post("/generate-prompt", async (req, res) => {
     try {
-        const { userId, businessName, objective, commonInquiries, agentName, rules, location, contactMethod, currentTime, llmId } = req.body;
+        const { userId, businessName, agentName, contactMethod, currentTime, llmId } = req.body;
 
-        if (!userId || !llmId || !businessName || !objective || !commonInquiries || !agentName || !rules || !location || !contactMethod || !currentTime) {
-            return res.status(400).json({ message: "All fields are required" });
+        // Required fields check
+        const requiredFields = ["userId", "businessName", "agentName", "contactMethod", "currentTime", "llmId"];
+        const missingFields = checkMissingFields(requiredFields, req.body);
+
+        if (missingFields.length > 0) {
+            return res.status(400).json({ message: `Missing required fields: ${missingFields.join(", ")}` });
         }
 
         // Generate prompt
         const customPrompt = generateCustomPrompt({
-            businessName, objective, commonInquiries, agentName, rules, location, contactMethod, currentTime
+            businessName, agentName, contactMethod, currentTime
         });
 
         // Call Retell API to update LLM
