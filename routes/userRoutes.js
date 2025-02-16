@@ -274,5 +274,47 @@ router.post("/generate-prompt", async (req, res) => {
     }
 });
 
+// ✅ PATCH route to update an existing agent (instead of creating new ones)
+router.patch("/update-llm/:llmId", async (req, res) => {
+    try {
+        const { llmId } = req.params;
+        const { agentName } = req.body;
+
+        if (!llmId || !agentName) {
+            return res.status(400).json({ message: "llmId and agentName are required" });
+        }
+
+        console.log("🔄 Updating LLM:", llmId);
+
+        // ✅ Call Retell API to update the LLM name
+        const updateURL = `https://api.retellai.com/update-retell-llm/${llmId}`;
+        const retellResponse = await axios.patch(
+            updateURL,
+            { begin_message: `Hello, this is ${agentName}, how can I help you?` },
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.RETELL_API_KEY}`, // Use env variable
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        console.log("✅ Retell API Response:", retellResponse.data);
+
+        res.status(200).json({
+            message: "Agent updated successfully!",
+            updatedData: retellResponse.data
+        });
+
+    } catch (error) {
+        console.error("❌ Error:", error);
+        res.status(500).json({
+            message: "Server Error",
+            error: error.response?.data || error.message
+        });
+    }
+});
+
+
 
 export default router;
