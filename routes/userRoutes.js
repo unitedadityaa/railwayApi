@@ -46,28 +46,25 @@ router.post("/add-llm", async (req, res) => {
     try {
         const { userId, agentName, voiceId } = req.body;
 
+        console.log("🚀 Received request to add LLM", { userId, agentName, voiceId });
+
         if (!userId || !agentName || !voiceId) {
+            console.error("❌ Missing required fields", { userId, agentName, voiceId });
             return res.status(400).json({ message: "userId, agentName, and voiceId are required" });
         }
 
         // ✅ Find the user in MongoDB
         const user = await User.findById(userId);
         if (!user) {
+            console.error("❌ User not found:", userId);
             return res.status(404).json({ message: "User not found" });
         }
 
-        // ✅ Check if the user already has an agent
-        const existingAgent = user.llms.find(llm => llm.agentName === agentName);
-        if (existingAgent) {
-            return res.status(200).json({
-                message: "Agent already exists, returning existing agent ID.",
-                agentId: existingAgent.agentId
-            });
-        }
+        console.log("✅ User found:", user);
 
-        // ✅ If no agent exists, create a new one
+        // ✅ Call Retell API to create an LLM
         const retellLLMResponse = await axios.post(
-            "https://api.retellai.com/create-llm",
+            "https://api.retellai.com/create-retell-llm",
             { begin_message: `Hello, this is ${agentName}, how can I help you?` },
             {
                 headers: {
@@ -77,12 +74,15 @@ router.post("/add-llm", async (req, res) => {
             }
         );
 
+        console.log("✅ Retell LLM Response:", retellLLMResponse.data);
+
         const llmId = retellLLMResponse.data.llm_id;
         if (!llmId) {
+            console.error("❌ Failed to retrieve llm_id");
             return res.status(500).json({ message: "Failed to retrieve llm_id from Retell API" });
         }
 
-        // ✅ Create an agent using the LLM ID
+        // ✅ Call Retell API to create an agent
         const retellAgentResponse = await axios.post(
             "https://api.retellai.com/create-agent",
             {
@@ -105,8 +105,11 @@ router.post("/add-llm", async (req, res) => {
             }
         );
 
+        console.log("✅ Retell Agent Response:", retellAgentResponse.data);
+
         const agentId = retellAgentResponse.data.agent_id;
         if (!agentId) {
+            console.error("❌ Failed to retrieve agent_id");
             return res.status(500).json({ message: "Failed to retrieve agent_id from Retell API" });
         }
 
@@ -114,12 +117,14 @@ router.post("/add-llm", async (req, res) => {
         user.llms.push({ llmId, agentId, agentName });
         await user.save();
 
+        console.log("✅ Successfully stored agent in database");
+
         res.status(201).json({
             message: "New agent created successfully!",
             agentId
         });
     } catch (error) {
-        console.error("Error:", error);
+        console.error("❌ Server Error:", error.response?.data || error.message);
         res.status(500).json({
             message: "Server Error",
             error: error.response?.data || error.message
