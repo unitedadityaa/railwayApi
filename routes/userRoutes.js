@@ -315,6 +315,26 @@ router.patch("/update-llm/:llmId", async (req, res) => {
     }
 });
 
+router.get("/check-agent/:userId", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findById(userId);
 
+        if (!user || !user.llms.length) {
+            return res.status(404).json({ message: "No agents found for this user." });
+        }
+
+        const latestLlm = user.llms[user.llms.length - 1];
+
+        res.status(200).json({
+            llmId: latestLlm.llmId,
+            agentId: latestLlm.agentId,
+            agentName: latestLlm.agentName || "Unknown",
+        });
+    } catch (error) {
+        console.error("❌ Error fetching agent:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+});
 
 export default router;
