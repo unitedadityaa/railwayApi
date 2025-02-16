@@ -43,8 +43,6 @@ router.post("/create", async (req, res) => {
 
 
 router.post("/add-llm", async (req, res) => {
-    console.log("Received request to /add-llm");  // Debug log
-    console.log("Request body:", req.body);
     try {
         const { userId, agentName, voiceId } = req.body;
 
@@ -52,15 +50,24 @@ router.post("/add-llm", async (req, res) => {
             return res.status(400).json({ message: "userId, agentName, and voiceId are required" });
         }
 
-        // Find user in MongoDB
+        // ✅ Find the user in MongoDB
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // Step 1: Create an LLM in Retell
+        // ✅ Check if the user already has an agent
+        const existingAgent = user.llms.find(llm => llm.agentName === agentName);
+        if (existingAgent) {
+            return res.status(200).json({
+                message: "Agent already exists, returning existing agent ID.",
+                agentId: existingAgent.agentId
+            });
+        }
+
+        // ✅ If no agent exists, create a new one
         const retellLLMResponse = await axios.post(
-            RETELL_CREATE_LLM_URL,
+            "https://api.retellai.com/create-llm",
             { begin_message: `Hello, this is ${agentName}, how can I help you?` },
             {
                 headers: {
@@ -70,15 +77,14 @@ router.post("/add-llm", async (req, res) => {
             }
         );
 
-        // Extract LLM ID
         const llmId = retellLLMResponse.data.llm_id;
         if (!llmId) {
             return res.status(500).json({ message: "Failed to retrieve llm_id from Retell API" });
         }
 
-        // Step 2: Create an Agent using the LLM ID
+        // ✅ Create an agent using the LLM ID
         const retellAgentResponse = await axios.post(
-            RETELL_CREATE_AGENT_URL,
+            "https://api.retellai.com/create-agent",
             {
                 response_engine: {
                     type: "retell-llm",
@@ -99,21 +105,18 @@ router.post("/add-llm", async (req, res) => {
             }
         );
 
-        // Extract Agent ID
         const agentId = retellAgentResponse.data.agent_id;
         if (!agentId) {
             return res.status(500).json({ message: "Failed to retrieve agent_id from Retell API" });
         }
 
-        // Step 3: Save LLM and Agent to MongoDB
-        user.llms.push({ llmId, agentId });
+        // ✅ Store agent details in MongoDB
+        user.llms.push({ llmId, agentId, agentName });
         await user.save();
 
-        res.status(200).json({
-            message: "LLM and Agent created successfully!",
-            llmId,
-            agentId,
-            user
+        res.status(201).json({
+            message: "New agent created successfully!",
+            agentId
         });
     } catch (error) {
         console.error("Error:", error);
@@ -123,7 +126,6 @@ router.post("/add-llm", async (req, res) => {
         });
     }
 });
-
 
 
 router.patch("/update-prompt", async (req, res) => {
