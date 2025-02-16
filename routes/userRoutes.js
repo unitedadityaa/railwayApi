@@ -186,11 +186,11 @@ router.post("/generate-prompt", async (req, res) => {
 // ✅ Create LLM & Agent Together
 router.post("/create-llm", async (req, res) => {
     try {
-        const { userId, generalPrompt, beginMessage } = req.body;
+        const { userId, generalPrompt, beginMessage, agentName } = req.body;
 
         // Validate input
-        if (!userId || !generalPrompt || !beginMessage) {
-            return res.status(400).json({ message: "userId, generalPrompt, and beginMessage are required." });
+        if (!userId || !generalPrompt || !beginMessage || !agentName) {
+            return res.status(400).json({ message: "userId, generalPrompt, beginMessage, and agentName are required." });
         }
 
         // ✅ Step 1: Create LLM
@@ -225,7 +225,7 @@ router.post("/create-llm", async (req, res) => {
                     llm_id: llmId,
                 },
                 voice_id: "11labs-Chloe",
-                agent_name: "YourAgentName", // Modify if needed
+                agent_name: agentName, // ✅ Dynamically set from frontend
                 voice_model: "eleven_flash_v2_5",
                 ambient_sound: "coffee-shop",
                 ambient_sound_volume: 1.5,
@@ -272,8 +272,6 @@ router.post("/create-llm", async (req, res) => {
         });
     }
 });
-
-
 
 
 export default router;
