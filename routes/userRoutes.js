@@ -302,8 +302,8 @@ router.patch("/update-llm", async (req, res) => {
         const { userId, llmId, agentName, businessName, timezone, contactMethod } = req.body;
 
         // ✅ Validate Inputs
-        if (!userId || !llmId || !agentName) {
-            return res.status(400).json({ message: "userId, llmId, and agentName are required." });
+        if (!userId || !llmId || !agentName || !timezone || !businessName || !contactMethod) {
+            return res.status(400).json({ message: "Missing required fields." });
         }
 
         // ✅ Find User
@@ -322,8 +322,10 @@ router.patch("/update-llm", async (req, res) => {
         llmEntry.agentName = agentName;
         await user.save();
 
+        // ✅ Generate Correct Time Format
+        const currentTimePlaceholder = `{{current_time}}, convert it to '${timezone}'`;
+
         // ✅ Generate New General Prompt
-        const currentTime = `{{${timezone}}}`; // 🔥 Ensure it's in curly braces for dynamic timezone support
         const updatedPrompt = `
 # Role
 You are a world-class Customer Support Executive with expertise in **friendly and professional** communication. Your name is **${agentName}**.
@@ -332,7 +334,8 @@ You are a world-class Customer Support Executive with expertise in **friendly an
 Your primary goal is to ensure a seamless and professional experience for customers by handling inquiries, scheduling appointments, and providing expert assistance on services provided by **${businessName}**.
 
 # Context
-The **current date and time** is: ${currentTime}. You are speaking with the customer on the phone. Your job is to provide accurate information and help customers move to the next step: **${contactMethod}**.
+The **current date and time** is: ${currentTimePlaceholder}.
+You are speaking with the customer on the phone. Your job is to provide accurate information and help customers move to the next step: **${contactMethod}**.
 
 # Instructions
 - You **must not make up new facts** or edit any information beyond what has been provided.
@@ -350,7 +353,7 @@ The **current date and time** is: ${currentTime}. You are speaking with the cust
         const response = await axios.patch(
             `https://api.retellai.com/update-retell-llm/${llmId}`,
             {
-                general_prompt: updatedPrompt, // ✅ Ensure `general_prompt` is updated
+                general_prompt: updatedPrompt, // ✅ Update general_prompt
                 begin_message: `Hello! This is ${agentName}. How can I assist you today?`,
             },
             { headers: { Authorization: `Bearer ${RETELL_API_KEY}`, "Content-Type": "application/json" } }
@@ -364,6 +367,5 @@ The **current date and time** is: ${currentTime}. You are speaking with the cust
         return res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
     }
 });
-
 
 export default router;
