@@ -273,65 +273,6 @@ router.post("/create-llm", async (req, res) => {
     }
 });
 
-router.patch("/update-llm", async (req, res) => {
-    try {
-        const { llmId, agentName } = req.body;
-
-        // ✅ Validate inputs
-        if (!llmId || !agentName) {
-            return res.status(400).json({ message: "llmId and agentName are required." });
-        }
-
-        // ✅ Fetch the existing LLM details from Retell
-        const fetchResponse = await axios.get(
-            `https://api.retellai.com/get-retell-llm/${llmId}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${RETELL_API_KEY}`,
-                },
-            }
-        );
-
-        const existingData = fetchResponse.data;
-
-        // ✅ Update only if there's a change in the agent name
-        if (existingData.begin_message !== `Hello! This is ${agentName}. How can I assist you today?`) {
-            console.log("🔄 Updating LLM begin_message due to agent name change...");
-
-            // ✅ Update LLM in Retell
-            const updateResponse = await axios.patch(
-                `https://api.retellai.com/update-retell-llm/${llmId}`,
-                {
-                    begin_message: `Hello! This is ${agentName}. How can I assist you today?`, // ✅ Only update begin message
-                },
-                {
-                    headers: {
-                        Authorization: `Bearer ${RETELL_API_KEY}`,
-                        "Content-Type": "application/json",
-                    },
-                }
-            );
-
-            console.log(`✅ LLM Updated: ${llmId}`);
-
-            return res.status(200).json({
-                message: "LLM updated successfully!",
-                updatedData: updateResponse.data,
-            });
-        }
-
-        // ✅ If name hasn't changed, return without updating
-        return res.status(200).json({ message: "No changes detected. LLM remains the same." });
-
-    } catch (error) {
-        console.error("❌ Error:", error.response?.data || error.message);
-        res.status(500).json({
-            message: "Server Error",
-            error: error.response?.data || error.message,
-        });
-    }
-});
-
 // ✅ Get LLM Details by ID
 router.get("/get-llm/:llmId", async (req, res) => {
     try {
@@ -351,6 +292,66 @@ router.get("/get-llm/:llmId", async (req, res) => {
         res.status(200).json(response.data);
     } catch (error) {
         console.error("❌ Error fetching LLM:", error.response?.data || error.message);
+        res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
+    }
+});
+
+router.patch("/update-llm", async (req, res) => {
+    try {
+        const { llmId, agentName, businessName, timezone, contactMethod } = req.body;
+
+        // ✅ Validate Inputs (Require at least `llmId`)
+        if (!llmId) {
+            return res.status(400).json({ message: "llmId is required." });
+        }
+
+        // ✅ Fetch existing LLM details from Retell
+        const fetchResponse = await axios.get(
+            `https://api.retellai.com/get-retell-llm/${llmId}`,
+            { headers: { Authorization: `Bearer ${RETELL_API_KEY}` } }
+        );
+
+        const existingData = fetchResponse.data;
+
+        // ✅ Prepare updated data
+        const updatePayload = {};
+        if (agentName && existingData.begin_message !== `Hello! This is ${agentName}. How can I assist you today?`) {
+            updatePayload.begin_message = `Hello! This is ${agentName}. How can I assist you today?`;
+        }
+
+        if (businessName || timezone || contactMethod) {
+            // ✅ Update prompt if business details change
+            const currentTime = new Date().toLocaleString("en-US", { timeZone: timezone });
+            updatePayload.general_prompt = generateCustomPrompt({
+                businessName: businessName || existingData.businessName,
+                agentName: agentName || "Sia", // Use existing agent name if not provided
+                contactMethod: contactMethod || "phone", // Default to phone
+                currentTime,
+            });
+        }
+
+        // ✅ If nothing changed, return early
+        if (Object.keys(updatePayload).length === 0) {
+            return res.status(200).json({ message: "No changes detected. LLM remains the same." });
+        }
+
+        // ✅ Update LLM in Retell
+        const updateResponse = await axios.patch(
+            `https://api.retellai.com/update-retell-llm/${llmId}`,
+            updatePayload,
+            {
+                headers: {
+                    Authorization: `Bearer ${RETELL_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+
+        console.log(`✅ LLM Updated: ${llmId}`);
+        return res.status(200).json({ message: "LLM updated successfully!", updatedData: updateResponse.data });
+
+    } catch (error) {
+        console.error("❌ Error:", error.response?.data || error.message);
         res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
     }
 });
