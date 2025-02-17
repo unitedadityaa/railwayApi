@@ -275,68 +275,41 @@ router.post("/create-llm", async (req, res) => {
 
 router.patch("/update-llm", async (req, res) => {
     try {
-        const { userId, llmId, agentName, generalPrompt, beginMessage } = req.body;
+        const { userId, llmId, businessName, timezone, contactMethod, agentName } = req.body;
 
-        // ✅ Validate required inputs
+        // ✅ Validate required fields
         if (!userId || !llmId) {
             return res.status(400).json({ message: "userId and llmId are required." });
         }
 
-        // ✅ Fetch the existing LLM details from Retell
-        console.log(`🔍 Fetching current details for LLM ID: ${llmId}`);
-        const fetchResponse = await axios.get(
-            `https://api.retellai.com/get-retell-llm/${llmId}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${RETELL_API_KEY}`,
-                },
-            }
-        );
+        // ✅ Use stored values for missing fields
+        const updatedBusinessName = businessName || "Business";
+        const updatedTimezone = timezone || "UTC";
+        const updatedContactMethod = contactMethod || "phone call";
+        const updatedAgentName = agentName || "Sia"; // Default agent name
 
-        const existingData = fetchResponse.data;
+        // ✅ Generate Updated Prompt
+        const currentTime = new Date().toLocaleString("en-US", { timeZone: updatedTimezone });
+        const updatedPrompt = generateCustomPrompt({
+            businessName: updatedBusinessName,
+            agentName: updatedAgentName,  // 🔥 Use agent name in the prompt, but don't update agent itself
+            contactMethod: updatedContactMethod,
+            currentTime,
+        });
 
-        // ✅ Prepare the update payload (Only include changed fields)
-        const updatedData = {};
-        if (agentName && `Hello! This is ${agentName}. How can I assist you today?` !== existingData.begin_message) {
-            updatedData.begin_message = `Hello! This is ${agentName}. How can I assist you today?`;
-        }
-        if (generalPrompt && generalPrompt !== existingData.general_prompt) {
-            updatedData.general_prompt = generalPrompt;
-        }
-        if (beginMessage && beginMessage !== existingData.begin_message) {
-            updatedData.begin_message = beginMessage;
-        }
-
-        // ✅ If nothing changed, return success without calling API
-        if (Object.keys(updatedData).length === 0) {
-            return res.status(200).json({ message: "No changes detected. LLM remains the same." });
-        }
-
-        // ✅ Send update request to Retell
-        console.log("🔄 Updating LLM with:", updatedData);
-        const updateResponse = await axios.patch(
+        // ✅ Send Updated Prompt to Retell API
+        const response = await axios.patch(
             `https://api.retellai.com/update-retell-llm/${llmId}`,
-            updatedData,
-            {
-                headers: {
-                    Authorization: `Bearer ${RETELL_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-            }
+            { general_prompt: updatedPrompt },
+            { headers: { Authorization: `Bearer ${RETELL_API_KEY}`, "Content-Type": "application/json" } }
         );
 
         console.log(`✅ LLM Updated: ${llmId}`);
-        res.status(200).json({
-            message: "LLM updated successfully!",
-            updatedData: updateResponse.data,
-        });
+        return res.status(200).json({ message: "LLM updated successfully!", updatedData: response.data });
 
     } catch (error) {
         console.error("❌ Error:", error.response?.data || error.message);
-        res.status(500).json({
-            message: "Server Error",
-            error: error.response?.data || error.message,
-        });
+        return res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
     }
 });
 
