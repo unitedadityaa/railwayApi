@@ -95,7 +95,7 @@ router.patch("/update-prompt", async (req, res) => {
 });
 
 
-const generateCustomPrompt = ({ businessName, agentName, contactMethod, currentTime }) => {
+const generateCustomPrompt = ({ businessName, agentName, contactMethod, timezone }) => {
     return `# Role
     
 You are a world-class Customer Support Executive with expertise in **friendly and professional** communication. Your name is **${agentName}**.
@@ -114,7 +114,7 @@ The task is crucial for our business, as each client brings us revenue. It's vit
 
 # Instructions
 
-- The **current date and time** is: **${currentTime}**.
+- The **current date and time** is: **{{${timezone}}}**.
 - You are speaking with the customer on the phone.
 - You **must not make up new facts** or edit any information beyond what has been provided.
 - If a customer asks something that is not in your knowledge base, politely let them know you will forward their inquiry.
@@ -300,59 +300,30 @@ router.patch("/update-llm", async (req, res) => {
     try {
         const { llmId, agentName, businessName, timezone, contactMethod } = req.body;
 
-        // ✅ Validate Inputs (Require at least `llmId`)
         if (!llmId) {
             return res.status(400).json({ message: "llmId is required." });
         }
 
-        // ✅ Fetch existing LLM details from Retell
-        const fetchResponse = await axios.get(
-            `https://api.retellai.com/get-retell-llm/${llmId}`,
-            { headers: { Authorization: `Bearer ${RETELL_API_KEY}` } }
-        );
-
-        const existingData = fetchResponse.data;
-
-        // ✅ Prepare updated data
-        const updatePayload = {};
-        if (agentName && existingData.begin_message !== `Hello! This is ${agentName}. How can I assist you today?`) {
-            updatePayload.begin_message = `Hello! This is ${agentName}. How can I assist you today?`;
-        }
-
-        if (businessName || timezone || contactMethod) {
-            // ✅ Update prompt if business details change
-            const currentTime = new Date().toLocaleString("en-US", { timeZone: timezone });
-            updatePayload.general_prompt = generateCustomPrompt({
-                businessName: businessName || existingData.businessName,
-                agentName: agentName || "Sia", // Use existing agent name if not provided
-                contactMethod: contactMethod || "phone", // Default to phone
-                currentTime,
-            });
-        }
-
-        // ✅ If nothing changed, return early
-        if (Object.keys(updatePayload).length === 0) {
-            return res.status(200).json({ message: "No changes detected. LLM remains the same." });
-        }
+        // ✅ Generate Updated Prompt
+        const updatedPrompt = generateCustomPrompt({
+            businessName: businessName || "Your Business",
+            agentName: agentName || "Agent",
+            contactMethod: contactMethod || "phone",
+            timezone: timezone || "UTC",
+        });
 
         // ✅ Update LLM in Retell
-        const updateResponse = await axios.patch(
+        const response = await axios.patch(
             `https://api.retellai.com/update-retell-llm/${llmId}`,
-            updatePayload,
-            {
-                headers: {
-                    Authorization: `Bearer ${RETELL_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-            }
+            { general_prompt: updatedPrompt },
+            { headers: { Authorization: `Bearer ${RETELL_API_KEY}`, "Content-Type": "application/json" } }
         );
 
-        console.log(`✅ LLM Updated: ${llmId}`);
-        return res.status(200).json({ message: "LLM updated successfully!", updatedData: updateResponse.data });
+        return res.status(200).json({ message: "LLM updated successfully!", updatedData: response.data });
 
     } catch (error) {
         console.error("❌ Error:", error.response?.data || error.message);
-        res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
+        return res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
     }
 });
 
