@@ -332,5 +332,28 @@ router.patch("/update-llm", async (req, res) => {
     }
 });
 
+// ✅ Get LLM Details by ID
+router.get("/get-llm/:llmId", async (req, res) => {
+    try {
+        const { llmId } = req.params;
+
+        // ✅ Validate input
+        if (!llmId) {
+            return res.status(400).json({ message: "llmId is required." });
+        }
+
+        // ✅ Fetch LLM details from Retell API
+        const response = await axios.get(
+            `https://api.retellai.com/get-retell-llm/${llmId}`,
+            { headers: { Authorization: `Bearer ${RETELL_API_KEY}` } }
+        );
+
+        res.status(200).json(response.data);
+    } catch (error) {
+        console.error("❌ Error fetching LLM:", error.response?.data || error.message);
+        res.status(500).json({ message: "Server Error", error: error.response?.data || error.message });
+    }
+});
+
 
 export default router;
