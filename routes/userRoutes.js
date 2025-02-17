@@ -275,15 +275,14 @@ router.post("/create-llm", async (req, res) => {
 
 router.patch("/update-llm", async (req, res) => {
     try {
-        const { userId, llmId, agentName, generalPrompt, beginMessage } = req.body;
+        const { llmId, agentName } = req.body;
 
-        // ✅ Validate required inputs
-        if (!userId || !llmId) {
-            return res.status(400).json({ message: "userId and llmId are required." });
+        // ✅ Validate inputs
+        if (!llmId || !agentName) {
+            return res.status(400).json({ message: "llmId and agentName are required." });
         }
 
         // ✅ Fetch the existing LLM details from Retell
-        console.log(`🔍 Fetching current details for LLM ID: ${llmId}`);
         const fetchResponse = await axios.get(
             `https://api.retellai.com/get-retell-llm/${llmId}`,
             {
@@ -295,41 +294,34 @@ router.patch("/update-llm", async (req, res) => {
 
         const existingData = fetchResponse.data;
 
-        // ✅ Prepare the update payload (Only include changed fields)
-        const updatedData = {};
-        if (agentName && `Hello! This is ${agentName}. How can I assist you today?` !== existingData.begin_message) {
-            updatedData.begin_message = `Hello! This is ${agentName}. How can I assist you today?`;
-        }
-        if (generalPrompt && generalPrompt !== existingData.general_prompt) {
-            updatedData.general_prompt = generalPrompt;
-        }
-        if (beginMessage && beginMessage !== existingData.begin_message) {
-            updatedData.begin_message = beginMessage;
-        }
+        // ✅ Update only if there's a change in the agent name
+        if (existingData.begin_message !== `Hello! This is ${agentName}. How can I assist you today?`) {
+            console.log("🔄 Updating LLM begin_message due to agent name change...");
 
-        // ✅ If nothing changed, return success without calling API
-        if (Object.keys(updatedData).length === 0) {
-            return res.status(200).json({ message: "No changes detected. LLM remains the same." });
-        }
-
-        // ✅ Send update request to Retell
-        console.log("🔄 Updating LLM with:", updatedData);
-        const updateResponse = await axios.patch(
-            `https://api.retellai.com/update-retell-llm/${llmId}`,
-            updatedData,
-            {
-                headers: {
-                    Authorization: `Bearer ${RETELL_API_KEY}`,
-                    "Content-Type": "application/json",
+            // ✅ Update LLM in Retell
+            const updateResponse = await axios.patch(
+                `https://api.retellai.com/update-retell-llm/${llmId}`,
+                {
+                    begin_message: `Hello! This is ${agentName}. How can I assist you today?`, // ✅ Only update begin message
                 },
-            }
-        );
+                {
+                    headers: {
+                        Authorization: `Bearer ${RETELL_API_KEY}`,
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
 
-        console.log(`✅ LLM Updated: ${llmId}`);
-        res.status(200).json({
-            message: "LLM updated successfully!",
-            updatedData: updateResponse.data,
-        });
+            console.log(`✅ LLM Updated: ${llmId}`);
+
+            return res.status(200).json({
+                message: "LLM updated successfully!",
+                updatedData: updateResponse.data,
+            });
+        }
+
+        // ✅ If name hasn't changed, return without updating
+        return res.status(200).json({ message: "No changes detected. LLM remains the same." });
 
     } catch (error) {
         console.error("❌ Error:", error.response?.data || error.message);
@@ -339,5 +331,6 @@ router.patch("/update-llm", async (req, res) => {
         });
     }
 });
+
 
 export default router;
