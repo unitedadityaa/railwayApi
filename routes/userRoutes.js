@@ -299,9 +299,9 @@ router.get("/get-llm/:llmId", async (req, res) => {
 
 router.patch("/update-llm", async (req, res) => {
     try {
-        const { userId, llmId, agentName } = req.body;
+        const { userId, llmId, agentName, businessName, timezone, contactMethod } = req.body;
 
-        // ✅ Validate inputs
+        // ✅ Validate Inputs
         if (!userId || !llmId || !agentName) {
             return res.status(400).json({ message: "userId, llmId, and agentName are required." });
         }
@@ -312,18 +312,45 @@ router.patch("/update-llm", async (req, res) => {
             return res.status(404).json({ message: "User not found." });
         }
 
-        // ✅ Update Agent Name in Database
+        // ✅ Find LLM Entry in User's DB
         const llmEntry = user.llms.find(llm => llm.llmId === llmId);
         if (!llmEntry) {
             return res.status(404).json({ message: "LLM not found for this user." });
         }
-        llmEntry.agentName = agentName; // ✅ Update agent name in DB
+
+        // ✅ Update Agent Name in DB
+        llmEntry.agentName = agentName;
         await user.save();
+
+        // ✅ Generate New General Prompt
+        const currentTime = `{{${timezone}}}`; // 🔥 Ensure it's in curly braces for dynamic timezone support
+        const updatedPrompt = `
+# Role
+You are a world-class Customer Support Executive with expertise in **friendly and professional** communication. Your name is **${agentName}**.
+
+# Objective
+Your primary goal is to ensure a seamless and professional experience for customers by handling inquiries, scheduling appointments, and providing expert assistance on services provided by **${businessName}**.
+
+# Context
+The **current date and time** is: ${currentTime}. You are speaking with the customer on the phone. Your job is to provide accurate information and help customers move to the next step: **${contactMethod}**.
+
+# Instructions
+- You **must not make up new facts** or edit any information beyond what has been provided.
+- If a customer asks something that is not in your knowledge base, politely let them know you will forward their inquiry.
+
+# Steps
+1. **Greet & Offer Assistance**  
+2. **Explain Services & Build Interest**  
+3. **Encourage Next Steps**  
+4. **Follow Important Rules**  
+5. **Close the Call**  
+        `.trim();
 
         // ✅ Update LLM in Retell
         const response = await axios.patch(
             `https://api.retellai.com/update-retell-llm/${llmId}`,
             {
+                general_prompt: updatedPrompt, // ✅ Ensure `general_prompt` is updated
                 begin_message: `Hello! This is ${agentName}. How can I assist you today?`,
             },
             { headers: { Authorization: `Bearer ${RETELL_API_KEY}`, "Content-Type": "application/json" } }
