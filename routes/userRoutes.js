@@ -188,7 +188,7 @@ router.post("/create-llm", async (req, res) => {
     try {
         const { userId, generalPrompt, beginMessage, agentName } = req.body;
 
-        // Validate input
+        // ✅ Validate input
         if (!userId || !generalPrompt || !beginMessage || !agentName) {
             return res.status(400).json({ message: "userId, generalPrompt, beginMessage, and agentName are required." });
         }
@@ -225,7 +225,7 @@ router.post("/create-llm", async (req, res) => {
                     llm_id: llmId,
                 },
                 voice_id: "11labs-Chloe",
-                agent_name: agentName, // ✅ Dynamically set from frontend
+                agent_name: agentName, // ✅ Store agent name correctly
                 voice_model: "eleven_flash_v2_5",
                 ambient_sound: "coffee-shop",
                 ambient_sound_volume: 1.5,
@@ -249,19 +249,20 @@ router.post("/create-llm", async (req, res) => {
 
         console.log(`✅ Agent Created: ${agentId}`);
 
-        // ✅ Step 3: Store LLM & Agent in User Object
+        // ✅ Step 3: Store LLM, Agent, and Agent Name in User Object
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: "User not found." });
         }
 
-        user.llms.push({ llmId, agentId });
+        user.llms.push({ llmId, agentId, agentName }); // ✅ Save agentName
         await user.save();
 
         res.status(200).json({
             message: "LLM & Agent created successfully!",
             llmId,
             agentId,
+            agentName, // ✅ Return agent name
         });
 
     } catch (error) {
@@ -298,27 +299,37 @@ router.get("/get-llm/:llmId", async (req, res) => {
 
 router.patch("/update-llm", async (req, res) => {
     try {
-        const { llmId, agentName, businessName, timezone, contactMethod } = req.body;
+        const { userId, llmId, agentName } = req.body;
 
-        if (!llmId) {
-            return res.status(400).json({ message: "llmId is required." });
+        // ✅ Validate inputs
+        if (!userId || !llmId || !agentName) {
+            return res.status(400).json({ message: "userId, llmId, and agentName are required." });
         }
 
-        // ✅ Generate Updated Prompt
-        const updatedPrompt = generateCustomPrompt({
-            businessName: businessName || "Your Business",
-            agentName: agentName || "Agent",
-            contactMethod: contactMethod || "phone",
-            timezone: timezone || "UTC",
-        });
+        // ✅ Find User
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        // ✅ Update Agent Name in Database
+        const llmEntry = user.llms.find(llm => llm.llmId === llmId);
+        if (!llmEntry) {
+            return res.status(404).json({ message: "LLM not found for this user." });
+        }
+        llmEntry.agentName = agentName; // ✅ Update agent name in DB
+        await user.save();
 
         // ✅ Update LLM in Retell
         const response = await axios.patch(
             `https://api.retellai.com/update-retell-llm/${llmId}`,
-            { general_prompt: updatedPrompt },
+            {
+                begin_message: `Hello! This is ${agentName}. How can I assist you today?`,
+            },
             { headers: { Authorization: `Bearer ${RETELL_API_KEY}`, "Content-Type": "application/json" } }
         );
 
+        console.log(`✅ LLM Updated: ${llmId}`);
         return res.status(200).json({ message: "LLM updated successfully!", updatedData: response.data });
 
     } catch (error) {
